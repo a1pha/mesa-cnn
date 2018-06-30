@@ -65,3 +65,17 @@ for x in actigraphy_files:
             wr = csv.writer(fp, dialect='excel')
             wr.writerow(entry)
             print(x)
+
+# Establish random seed
+np.random.seed([3,1415])
+
+# Dataset with outcomes
+outcomes = "/Users/ajadhav0517/Box/mesa/mesa_nhlbi/Primary/Exam5/Data/mesae5_drepos_20151101.csv"
+outcomes = pd.read_csv(outcomes)
+outcomes = outcomes[['mesaid', 'htn5c']].dropna()
+
+patient_data = pd.read_csv('Data.csv', header=None)
+patient_data.rename(columns={0:'mesaid'}, inplace=True)
+mergedDF = pd.merge(outcomes, patient_data, on='mesaid', how='inner')
+mergedDF.to_csv('Data.csv')
+
