@@ -15,13 +15,14 @@ m = len(data)
 train_end = int(0.75 * m)
 train = data.ix[perm[:train_end]]
 test = data.ix[perm[train_end:]]
+scaler = MinMaxScaler() # For normalizing dataset
 
 # Normalizing Data
-X_train = (train.drop(['htn5c'], axis=1)).as_matrix
-y_train = (train['htn5c']).as_matrix
+X_train = (train.drop(['htn5c'], axis=1)).values
+y_train = (train['htn5c']).values
 
-X_test = (test.drop(['htn5c'], axis=1)).as_matrix
-y_test = (test['htn5c']).as_matrix
+X_test = (test.drop(['htn5c'], axis=1)).values
+y_test = (test['htn5c']).values
 
 # Model Parameters
 n_classes = 1  # Corresponding to hypertension or not
@@ -44,13 +45,15 @@ def maxpool1d(x):
 def convolutional_neural_network(x):
     weights = {'W_conv1': tf.Variable(tf.random_normal([10, 1, 1])),
                'W_conv2': tf.Variable(tf.random_normal([10, 1, 1])),
-               'W_fc': tf.Variable(tf.random_normal([576, 500])),
+               'W_fc': tf.Variable(tf.random_normal([900, 500])),
                'out': tf.Variable(tf.random_normal([500, n_classes]))}
 
     biases = {'b_conv1': tf.Variable(tf.random_normal([1])),
               'b_conv2': tf.Variable(tf.random_normal([1])),
-              'b_fc': tf.Variable(tf.random_normal([250])),
+              'b_fc': tf.Variable(tf.random_normal([500])),
               'out': tf.Variable(tf.random_normal([n_classes]))}
+
+    x = tf.reshape(x, shape=[-1, 14400, 1])
 
     conv1 = tf.nn.relu(conv1d(x, weights['W_conv1']) + biases['b_conv1'])
     conv1 = maxpool1d(conv1)
@@ -58,7 +61,7 @@ def convolutional_neural_network(x):
     conv2 = tf.nn.relu(conv1d(conv1, weights['W_conv2']) + biases['b_conv2'])
     conv2 = maxpool1d(conv2)
 
-    fc = conv2
+    fc = tf.reshape(tensor=conv2, shape=[-1, 900])
     fc = tf.nn.relu(tf.matmul(fc, weights['W_fc']) + biases['b_fc'])
     # fc = tf.nn.dropout(fc, keep_rate)
 
@@ -97,7 +100,7 @@ def train_neural_network(x):
 
         for epoch in range(hm_epochs):
             epoch_loss = 0
-            for _ in range(int(len(X_train)/batch_size)):
+            for _ in range(int((X_train.shape[0])/batch_size)):
                 epoch_x, epoch_y = next_batch(batch_size, X_train, y_train)
                 _, c = sess.run([optimizer, cost], feed_dict={x: epoch_x, y: epoch_y})
                 epoch_loss += c
