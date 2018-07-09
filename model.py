@@ -26,7 +26,7 @@ y_test = (test['htn5c']).values
 
 # Model Parameters
 n_classes = 1  # Corresponding to hypertension or not
-batch_size = 150
+batch_size = 150 #50
 
 x = tf.placeholder('float', [None, 5*2880])
 y = tf.placeholder('float')

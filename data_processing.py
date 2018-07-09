@@ -1,15 +1,17 @@
 import numpy as np
 import pandas as pd
 import glob
-import csv
-import os
+import json
+import pickle
 
 # Directory where actigraphy files are located
 actigraphy_dir = "/Users/ajadhav0517/Box/mesa/actigraphy/"
 actigraphy_files = glob.glob(actigraphy_dir + '*.csv')
 
-
-# Some SIMPLE helper functions to take a first pass at actigraphy data
+# Directory where outcomes files are located
+outcomes = "/Users/ajadhav0517/Box/mesa/mesa_nhlbi/Primary/Exam5/Data/mesae5_drepos_20151101.csv"
+outcomes = pd.read_csv(outcomes)
+outcomes = outcomes.set_index('mesaid')
 
 
 def return_mesa_id(s):
@@ -56,26 +58,34 @@ def filter_activity(vec, min_hours=22, max_days=5):
         return None
 
 
-os.remove("Data.csv")
-for x in actigraphy_files:
-    entry = filter_activity(get_activity(x))
-    with open("Data.csv", "a") as fp:
-        if entry is not None:
-            entry = np.insert(entry, 0, return_mesa_id(x), axis=0)
-            wr = csv.writer(fp, dialect='excel')
-            wr.writerow(entry)
-            print(x)
+def create_data_dict(outcomes_desired, actigraphy_files, outcome_file):
+    data_dict = {}
+    for patient in actigraphy_files:
+        mesaid = return_mesa_id(patient)
+        if mesaid not in outcome_file.index.tolist():
+            continue
+        outcomes_valid = np.zeros(len(outcomes_desired))
+        i = 0
+        for outcome in outcomes_desired:
+            if np.isnan(outcome_file.at[mesaid, outcome]):
+                outcomes_valid[i] = 1
+            i += 1
+        if np.sum(outcomes_valid) != 0:
+            continue
+        elif filter_activity(get_activity(patient)) is None:
+            continue
+        else:
+            print(patient)
+            j = 0
+            outcomes_values = np.zeros(len(outcomes_desired))
+            for outcome in outcomes_desired:
+                outcomes_values[j] = outcome_file.at[mesaid, outcome]
+                j += 1
+            data_dict[mesaid] = outcomes_values
+    return data_dict
 
-# Establish random seed
-np.random.seed([3,1415])
 
-# Dataset with outcomes
-outcomes = "/Users/ajadhav0517/Box/mesa/mesa_nhlbi/Primary/Exam5/Data/mesae5_drepos_20151101.csv"
-outcomes = pd.read_csv(outcomes)
-outcomes = outcomes[['mesaid', 'htn5c']].dropna()
-
-patient_data = pd.read_csv('Data.csv', header=None)
-patient_data.rename(columns={0:'mesaid'}, inplace=True)
-mergedDF = pd.merge(outcomes, patient_data, on='mesaid', how='inner')
-mergedDF.to_csv('Data.csv')
-
+outcome_list = ['htn5c']
+data_dict = create_data_dict(outcome_list, actigraphy_files, outcomes)
+with open('data_dict.pickle', 'wb') as handle:
+    pickle.dump(data_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)

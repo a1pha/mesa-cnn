@@ -1,5 +1,6 @@
 # Data (Must be stored securely in PACE or Box)
 *.csv
 .DS_Store
+*.pickle
 
 
