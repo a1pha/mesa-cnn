@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import glob
+from tempfile import TemporaryFile
 import json
 import pickle
 
@@ -81,11 +82,27 @@ def create_data_dict(outcomes_desired, actigraphy_files, outcome_file):
             for outcome in outcomes_desired:
                 outcomes_values[j] = outcome_file.at[mesaid, outcome]
                 j += 1
-            data_dict[mesaid] = outcomes_values
+            data_dict[patient] = outcomes_values
     return data_dict
 
+if __name__ == "__main__":
+    outcome_list = ['htn5c']
+    data_dict = create_data_dict(outcome_list, actigraphy_files, outcomes)
+    elements = np.array(list(data_dict.values()))
+    elements = elements.astype(int)
+    elements_file = open('elements_file.pickle', 'wb')
+    pickle.dump(elements, elements_file)
+    elements_file.close()
+    keys = np.array(list(data_dict.keys()))
+    keys_processed = np.empty([keys.size, 14400])
+    i = 0
+    for patient in keys:
+        keys_processed[i] = filter_activity(get_activity(patient))
+        i += 1
+        print(i)
+    keys_file = open('keys_file.pickle', 'wb')
+    pickle.dump(keys_processed, keys_file)
+    keys_file.close()
 
-outcome_list = ['htn5c']
-data_dict = create_data_dict(outcome_list, actigraphy_files, outcomes)
-with open('data_dict.pickle', 'wb') as handle:
-    pickle.dump(data_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
