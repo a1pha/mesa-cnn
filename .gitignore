@@ -3,5 +3,6 @@
 .DS_Store
 *.pickle
 __pycache__/
+logs/
 
 

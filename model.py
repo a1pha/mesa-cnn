@@ -6,7 +6,7 @@ import tensorflow as tf
 import pickle
 
 # Batch Size
-BATCH_SIZE = 50
+batch_size = 50
 n_classes = 1
 
 # Loading the outcome dataset and processing mesa-ids
@@ -19,242 +19,73 @@ with open('keys_file.pickle', 'rb') as handle:
 # Splitting the data into training and test
 X_train, X_test, y_train, y_test = train_test_split(keys_file, elements_file, test_size=0.20, random_state=42)
 
-# Convert Numpy arrays to Tensors
-train_input = tf.constant(X_train)
-train_labels = tf.constant(y_train, dtype=tf.int32)
-test_input = tf.constant(X_test)
-test_labels = tf.constant(y_test, dtype=tf.int32)
-
-# Creating Dataset from Tensors
-train_data = tf.data.Dataset.from_tensor_slices((train_input, train_labels)).batch(BATCH_SIZE)
-# train_data = train_data.map(input_parser)
-test_data = tf.data.Dataset.from_tensor_slices((test_input, test_labels)).batch(BATCH_SIZE)
-
-# Functions for converting input to actual input from path and converting label to one-hot convention
-NUM_CLASSES = 1
-
-# create TensorFlow Iterator object
-Iterator = tf.data.Iterator
-iterator = Iterator.from_structure(train_data.output_types,
-                                   train_data.output_shapes)
-next_batch = iterator.get_next()
-
-# create two initialization ops to switch between the datasets
-training_init_op = iterator.make_initializer(train_data)
-validation_init_op = iterator.make_initializer(test_data)
 
 # Model Parameters
 x = tf.placeholder('float', [None, 5*2880])
 y = tf.placeholder('float')
 
 def conv1d(x, W):
-    return tf.nn.conv1d(x, W, stride=10, padding='SAME')
+    return tf.nn.conv1d(x, W, stride=1, padding='SAME')
 
+def conv2d(x, W):
+    return tf.nn.conv2d(x, W, strides=[1,1,1,1], padding='SAME')
 
 def maxpool1d(x):
-    #                        size of window         movement of window
-    return tf.layers.max_pooling1d(x, pool_size=5, strides=5,padding='SAME')
+    return tf.nn.pool(x, [5], 'MAX', 'SAME', strides=[5])
 
+def maxpool2d(x):
+    return tf.nn.max_pool(x, ksize=[1, 5, 5, 1], strides=[1, 5, 5, 1], padding='SAME')
 
 def convolutional_neural_network(x):
-    weights = {'W_conv1': tf.Variable(tf.random_normal([10, 1, 1])),
-               'W_conv2': tf.Variable(tf.random_normal([10, 1, 1])),
-               'W_fc': tf.Variable(tf.random_normal([300, 500])),
-               'out': tf.Variable(tf.random_normal([500, n_classes]))}
+    weights = {'W_conv1': tf.Variable(tf.random_normal([10, 1, 10])),
+               'W_conv2': tf.Variable(tf.random_normal([5, 5, 10, 20])),
+               'W_fc': tf.Variable(tf.random_normal([116000, 1024])),
+               'out': tf.Variable(tf.random_normal([1024, n_classes]))}
 
-    biases = {'b_conv1': tf.Variable(tf.random_normal([1])),
-              'b_conv2': tf.Variable(tf.random_normal([1])),
-              'b_fc': tf.Variable(tf.random_normal([500])),
+    biases = {'b_conv1': tf.Variable(tf.random_normal([10])),
+              'b_conv2': tf.Variable(tf.random_normal([20])),
+              'b_fc': tf.Variable(tf.random_normal([1024])),
               'out': tf.Variable(tf.random_normal([n_classes]))}
 
     x = tf.reshape(x, shape=[-1, 14400, 1])
-
-    conv1 = tf.nn.relu(conv1d(x, weights['W_conv1']) + biases['b_conv1'])
+    conv1 = conv1d(x, weights['W_conv1']) + biases['b_conv1']
     conv1 = maxpool1d(conv1)
 
-    conv2 = tf.nn.relu(conv1d(conv1, weights['W_conv2']) + biases['b_conv2'])
-    conv2 = maxpool1d(conv2)
+    conv1 = tf.reshape(conv1, shape=[-1, 576, 5, 10])
+    conv2 = conv2d(conv1, weights['W_conv2']) + biases['b_conv2']
+    conv2 = maxpool2d(conv2)
 
-    fc = tf.reshape(tensor=conv2, shape=[-1, 300])
-    fc = tf.nn.relu(tf.matmul(fc, weights['W_fc']) + biases['b_fc'])
+    fc = tf.reshape(conv2, shape=[-1, 116000])
+    fc = tf.nn.relu(tf.matmul(fc, weights['W_fc']+biases['b_fc']))
 
-    output = tf.matmul(fc, weights['out']) + biases['out']
-
+    output = tf.matmul(fc, weights['out']+biases['out'])
     return output
 
 
 def train_neural_network(x):
     prediction = convolutional_neural_network(x)
-    # OLD VERSION:
-    # cost = tf.reduce_mean( tf.nn.softmax_cross_entropy_with_logits(prediction,y) )
-    # NEW:
-    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y))
-    optimizer = tf.train.AdamOptimizer().minimize(cost)
-
-    hm_epochs = 33
-    with tf.Session() as sess:
-
-        sess.run(tf.global_variables_initializer())
-        # create TensorFlow Iterator object
-        Iterator = tf.data.Iterator
-        iterator = Iterator.from_structure(train_data.output_types,
-                                           train_data.output_shapes)
-        next_batch = iterator.get_next()
-
-        # create two initialization ops to switch between the datasets
-        training_init_op = iterator.make_initializer(train_data)
-        validation_init_op = iterator.make_initializer(test_data)
-        sess.run(training_init_op)
-
-        for epoch in range(hm_epochs):
-            epoch_loss = 0
-            for _ in range(int((X_train.shape[0])/BATCH_SIZE)):
-                epoch_x, epoch_y = next_batch
-                _, c = sess.run([optimizer, cost], feed_dict={x: sess.run(epoch_x), y: sess.run(epoch_y)})
-                epoch_loss += c
-
-            print('Epoch', epoch, 'completed out of', hm_epochs, 'loss:', epoch_loss)
-
-        correct = tf.equal(tf.argmax(prediction, 1), tf.argmax(y, 1))
-        sess.run(validation_init_op)
-        accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
-        print('Accuracy:', accuracy.eval({x: X_test, y: y_test}))
-
-
-train_neural_network(x)
-
-
-
-
-
-
-
-
-
-
-
-
-
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import MinMaxScaler
-import tensorflow as tf
-import pickle
-
-# Establish random seed for partitioning train and test
-np.random.seed(0)
-
-# Loading the outcome dataset
-with open('data_dict.pickle', 'rb') as handle:
-    data_dict = pickle.load(handle)
-
-# Creating input pipleine data
-for mesaid in data_dict:
-
-# Splitting dataset into train and test
-data = pd.read_csv('Data.csv')
-data = data.drop(['mesaid'], axis=1)
-data = data.drop(data.columns[0], axis=1)
-perm = np.random.permutation(data.index)
-m = len(data)
-train_end = int(0.75 * m)
-train = data.ix[perm[:train_end]]
-test = data.ix[perm[train_end:]]
-scaler = MinMaxScaler()  # For normalizing dataset
-
-# Normalizing Data
-X_train = (train.drop(['htn5c'], axis=1)).values
-y_train = (train['htn5c']).values
-
-X_test = (test.drop(['htn5c'], axis=1)).values
-y_test = (test['htn5c']).values
-
-# Model Parameters
-n_classes = 1  # Corresponding to hypertension or not
-batch_size = 50
-
-x = tf.placeholder('float', [None, 5 * 2880])
-y = tf.placeholder('float')
-
-
-# keep_rate = 0.8
-# keep_prob = tf.placeholder(tf.float32)
-def conv1d(x, W):
-    return tf.nn.conv1d(x, W, stride=10, padding='SAME')
-
-
-def maxpool1d(x):
-    #                        size of window         movement of window
-    return tf.layers.max_pooling1d(x, pool_size=5, strides=5, padding='SAME')
-
-
-def convolutional_neural_network(x):
-    weights = {'W_conv1': tf.Variable(tf.random_normal([10, 1, 1])),
-               'W_conv2': tf.Variable(tf.random_normal([10, 1, 1])),
-               'W_fc': tf.Variable(tf.random_normal([900, 500])),
-               'out': tf.Variable(tf.random_normal([500, n_classes]))}
-
-    biases = {'b_conv1': tf.Variable(tf.random_normal([1])),
-              'b_conv2': tf.Variable(tf.random_normal([1])),
-              'b_fc': tf.Variable(tf.random_normal([500])),
-              'out': tf.Variable(tf.random_normal([n_classes]))}
-
-    x = tf.reshape(x, shape=[-1, 14400, 1])
-
-    conv1 = tf.nn.relu(conv1d(x, weights['W_conv1']) + biases['b_conv1'])
-    conv1 = maxpool1d(conv1)
-
-    conv2 = tf.nn.relu(conv1d(conv1, weights['W_conv2']) + biases['b_conv2'])
-    conv2 = maxpool1d(conv2)
-
-    fc = tf.reshape(tensor=conv2, shape=[-1, 900])
-    fc = tf.nn.relu(tf.matmul(fc, weights['W_fc']) + biases['b_fc'])
-    # fc = tf.nn.dropout(fc, keep_rate)
-
-    output = tf.matmul(fc, weights['out']) + biases['out']
-
-    return output
-
-
-def next_batch(num, data, labels):
-    '''
-    Return a total of `num` random samples and labels.
-    '''
-    idx = np.arange(0, len(data))
-    np.random.shuffle(idx)
-    idx = idx[:num]
-    data_shuffle = [data[i] for i in idx]
-    labels_shuffle = [labels[i] for i in idx]
-
-    return np.asarray(data_shuffle), np.asarray(labels_shuffle)
-
-
-def train_neural_network(x):
-    prediction = convolutional_neural_network(x)
-    # OLD VERSION:
-    # cost = tf.reduce_mean( tf.nn.softmax_cross_entropy_with_logits(prediction,y) )
-    # NEW:
     cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y))
     optimizer = tf.train.AdamOptimizer().minimize(cost)
 
     hm_epochs = 10
     with tf.Session() as sess:
-        # OLD:
-        # sess.run(tf.initialize_all_variables())
-        # NEW:
         sess.run(tf.global_variables_initializer())
-
         for epoch in range(hm_epochs):
             epoch_loss = 0
-            for _ in range(int((X_train.shape[0]) / batch_size)):
-                epoch_x, epoch_y = next_batch(batch_size, X_train, y_train)
-                _, c = sess.run([optimizer, cost], feed_dict={x: epoch_x, y: epoch_y})
+
+            i = 0
+            while i < len(X_train):
+                start = i
+                end = i + batch_size
+                batch_x = np.array(X_train[start:end])
+                batch_y = np.array(y_train[start:end])
+                _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y})
                 epoch_loss += c
+                i += batch_size
 
             print('Epoch', epoch, 'completed out of', hm_epochs, 'loss:', epoch_loss)
 
         correct = tf.equal(tf.argmax(prediction, 1), tf.argmax(y, 1))
-
         accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
         print('Accuracy:', accuracy.eval({x: X_test, y: y_test}))
 

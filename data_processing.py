@@ -94,6 +94,9 @@ if __name__ == "__main__":
     pickle.dump(elements, elements_file)
     elements_file.close()
     keys = np.array(list(data_dict.keys()))
+    keys_unprocessed_file = open('keys_unprocessed_file.pickle', 'wb')
+    pickle.dump(keys, keys_unprocessed_file)
+    keys_unprocessed_file.close()
     keys_processed = np.empty([keys.size, 14400])
     i = 0
     for patient in keys:

@@ -2,15 +2,16 @@ from __future__ import print_function
 import keras
 from keras.datasets import mnist
 from keras.layers import Dense, Flatten
-from keras.layers import Conv2D, MaxPooling2D, Conv1D, MaxPooling1D, Reshape
+from keras.layers import Conv2D, MaxPooling2D, Conv1D, MaxPooling1D, Reshape, Dropout
 from keras.models import Sequential
 import matplotlib.pylab as plt
 from sklearn.model_selection import train_test_split
 import pickle
+from keras.callbacks import TensorBoard
 
 batch_size = 100
 num_classes = 2
-epochs = 5
+epochs = 1
 
 # input image dimensions
 img_x = 14400
@@ -44,18 +45,20 @@ y_test = keras.utils.to_categorical(y_test, num_classes)
 
 model = Sequential()
 model.add(Conv1D(10, kernel_size=10, strides=1,
-                 activation='relu',
+                 activation='sigmoid',
                  input_shape=input_shape, padding='same'))
 model.add(MaxPooling1D(pool_size=5, strides=5))
-model.add(Reshape((576, 5, -1)))
-model.add(Conv2D(20, (5, 5), activation='relu', padding='same'))
-model.add(MaxPooling2D(pool_size=(5, 5)))
+model.add(Reshape((576, 5, 10)))
+model.add(Conv2D(20, (5, 5), activation='sigmoid', padding='same'))
+model.add(MaxPooling2D(pool_size=(5, 1)))
+model.add(Dropout(0.25))
 model.add(Flatten())
-model.add(Dense(1000, activation='relu'))
-model.add(Dense(num_classes, activation='softmax'))
+model.add(Dense(1000, activation='sigmoid'))
+model.add(Dropout(0.5))
+model.add(Dense(num_classes, activation='sigmoid'))
 
-model.compile(loss=keras.losses.categorical_crossentropy,
-              optimizer=keras.optimizers.Adam(),
+model.compile(loss=keras.losses.binary_crossentropy,
+              optimizer=keras.optimizers.SGD(lr=0.1, momentum=0.0, decay=1e-4, nesterov=False),
               metrics=['accuracy'])
 
 
@@ -74,7 +77,8 @@ model.fit(X_train, y_train,
           epochs=epochs,
           verbose=1,
           validation_data=(X_test, y_test),
-          callbacks=[history])
+          callbacks=[history],
+          shuffle=True,)
 score = model.evaluate(X_test, y_test, verbose=0)
 print('Test loss:', score[0])
 print('Test accuracy:', score[1])
@@ -82,3 +86,6 @@ plt.plot(range(1, (epochs+1)), history.acc)
 plt.xlabel('Epochs')
 plt.ylabel('Accuracy')
 plt.show()
+
+for layer in model.layers:
+    print(layer.get_output_at(0).get_shape().as_list())
