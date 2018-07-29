@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
 import glob
-from tempfile import TemporaryFile
-import json
 import pickle
 
 # Directory where actigraphy files are located
@@ -10,7 +8,8 @@ actigraphy_dir = "/Users/ajadhav0517/Box/mesa/actigraphy/"
 actigraphy_files = glob.glob(actigraphy_dir + '*.csv')
 
 # Directory where outcomes files are located
-outcomes = "/Users/ajadhav0517/Box/mesa/mesa_nhlbi/Primary/Exam5/Data/mesae5_drepos_20151101.csv"
+outcomes1 = "/Users/ajadhav0517/Box/mesa/mesa_nhlbi/Primary/Exam5/Data/mesae5_drepos_20151101.csv"
+outcomes = "/Users/ajadhav0517/Box/mesa/datasets/mesa-sleep-dataset-0.2.0.csv"
 outcomes = pd.read_csv(outcomes)
 outcomes = outcomes.set_index('mesaid')
 
@@ -86,26 +85,8 @@ def create_data_dict(outcomes_desired, actigraphy_files, outcome_file):
     return data_dict
 
 if __name__ == "__main__":
-    outcome_list = ['htn5c']
+    outcome_list = ['epslpscl5c']
     data_dict = create_data_dict(outcome_list, actigraphy_files, outcomes)
-    elements = np.array(list(data_dict.values()))
-    elements = elements.astype(int)
-    elements_file = open('elements_file.pickle', 'wb')
-    pickle.dump(elements, elements_file)
-    elements_file.close()
-    keys = np.array(list(data_dict.keys()))
-    keys_unprocessed_file = open('keys_unprocessed_file.pickle', 'wb')
-    pickle.dump(keys, keys_unprocessed_file)
-    keys_unprocessed_file.close()
-    keys_processed = np.empty([keys.size, 14400])
-    i = 0
-    for patient in keys:
-        keys_processed[i] = filter_activity(get_activity(patient))
-        i += 1
-        print(i)
-    keys_file = open('keys_file.pickle', 'wb')
-    pickle.dump(keys_processed, keys_file)
-    keys_file.close()
-
-
+    with open('data_dict.pickle', 'wb') as write:
+        pickle.dump(data_dict, write, protocol=pickle.HIGHEST_PROTOCOL)
 
